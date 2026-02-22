@@ -1,11 +1,12 @@
 #pragma once
 #include "types.hpp"
 #include <map>
+#include <list>
 
 class OrderBook {
     private:
-        std::map<Price, Order> bids;
-        std::map<Price, Order> asks;
+        std::map<Price, std::list<Order>, std::greater<Price>> bids;
+        std::map<Price, std::list<Order>> asks;
 };
 
 class MatchingEngine {

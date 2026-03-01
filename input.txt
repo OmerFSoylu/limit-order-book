@@ -1,13 +1,178 @@
-# Add limit orders
+# ============================================================
+# ORDER BOOK TEST INPUT (COVERS CORE + EDGE CASES)
+# Format:
+#   ADD <id> <BUY/SELL> <priceTicks> <qty>
+#   CANCEL <id>
+#
+# Notes on the current implementation:
+# - Duplicate IDs are ignored (addOrder returns early)
+# - CANCEL on missing / already filled / already cancelled IDs is ignored
+# - Marketable (crossing) orders trigger matching immediately
+# - FIFO within same price level (push_back + pop_front)
+# ============================================================
+
+
+# ============================================================
+# TEST 1 — Build a resting book (no crossing)
+# ============================================================
+
 ADD 1001 BUY 10100 10
-ADD 1001 SELL 10200 5 
-ADD 1002 BUY 10150 7
-ADD 1003 SELL 10150 3
+ADD 1002 BUY 10050 5
+ADD 1003 BUY 10075 6
 
-# Cancel order
+ADD 1101 SELL 10200 8
+ADD 1102 SELL 10300 4
+ADD 1103 SELL 10180 3
+
+
+# Duplicate ID (should be rejected/ignored)
+# ADD 1001 SELL 10400 2      # cannot execute: duplicate order id (1001 already exists)
+
+
+# ============================================================
+# TEST 2 — Crossing orders (both sides), partial + full fills
+# ============================================================
+
+ADD 1201 SELL 10100 4
+# crosses spread (SELL 10100 <= best bid 10100)
+# expected: partially fills BUY 1001 -> BUY 1001 qty 10 -> 6
+
+ADD 1202 BUY 10200 10
+# crosses spread (BUY 10200 >= best ask 10180)
+# match sequence:
+#   1103 (3) fully filled (removed)
+#   1101 (8) partially filled by remaining 7 -> 1101 qty 8 -> 1
+# expected: 1202 fully filled (does NOT enter book)
+
+ADD 1203 SELL 10050 10
+# crosses spread (SELL 10050 <= best bid 10100)
+# match sequence:
+#   1001 (6) fully filled (removed)
+#   1003 (6) partially filled by remaining 4 -> 1003 qty 6 -> 2
+# expected: 1203 fully filled (does NOT enter book)
+
+ADD 1204 BUY 10150 2
+# likely does NOT cross if best ask is now 10200 or higher; if crosses, it will match.
+# (Either outcome is fine—this line mainly checks that non-crossing orders rest correctly.)
+
+ADD 1205 SELL 10150 2
+# if 1204 rested at 10150, this should cross and match exactly (boundary behavior at a single level)
+
+
+# ============================================================
+# TEST 3 — FIFO at same price level + partial consumption
+# ============================================================
+
+ADD 1301 BUY 10075 2
+ADD 1302 BUY 10075 2
+# same price level; FIFO should be 1301 then 1302
+
+ADD 1303 SELL 10075 3
+# crosses spread, should match:
+#   1301 fully (2)
+#   1302 partially (1) -> remaining 1302 qty becomes 1
+
+# Cancel already-filled order
+CANCEL 1301
+# cannot execute: order 1301 was fully filled above
+
+
+# ============================================================
+# TEST 4 — Cancel behavior (existing, missing, already cancelled)
+# ============================================================
+
 CANCEL 1002
-CANCEL 1005
+# executes if 1002 still exists (it should, unless earlier matches consumed it)
 
-# More adds to test matching
-ADD 1004 SELL 10100 2
-ADD 1005 BUY 10200 4
+CANCEL 1002
+# cannot execute: already cancelled above (no longer exists)
+
+CANCEL 1999
+# cannot execute: no order with id 1999
+
+
+# ============================================================
+# TEST 5 — Cancel removes entire price level (explicit edge case)
+# ============================================================
+
+ADD 1401 BUY 9000 1
+CANCEL 1401
+# executes: should delete the entire 9000 bid level (level becomes empty)
+
+
+# ============================================================
+# TEST 6 — Exact boundary match (qty hits 0 exactly; level must disappear)
+# ============================================================
+
+ADD 1501 SELL 14000 5
+ADD 1502 BUY 14000 5
+# exact match:
+# - 1501 removed
+# - 1502 removed
+# - 14000 ask level must disappear cleanly
+
+
+# ============================================================
+# TEST 7 — Sweep entire side + verify crossesSpread when opposite side empty
+# ============================================================
+
+# Create a small ask-side only (these do NOT cross if bids are lower)
+ADD 1601 SELL 20000 2
+ADD 1602 SELL 21000 2
+
+# Big aggressive buy should sweep all asks
+ADD 1603 BUY 30000 10
+# expected:
+#   1601 removed, 1602 removed, asks becomes empty
+#   remaining BUY quantity (10-4=6) is inserted as resting bid at 30000
+
+# Now asks is empty -> a buy order should NOT be marketable (crossesSpread should be false)
+ADD 1604 BUY 25000 1
+# does NOT cross because asks is empty -> must rest in bids
+
+
+# ============================================================
+# TEST 8 — Sweep entire bid side (mirror case)
+# ============================================================
+
+# Build a couple of bids at low prices
+ADD 1701 BUY 5000 2
+ADD 1702 BUY 6000 2
+
+# Aggressive sell should sweep bids
+ADD 1703 SELL 1 10
+# expected:
+#   1702 removed, 1701 removed, bids side loses those levels
+#   remaining SELL qty (10-4=6) is inserted as resting ask at price=1
+
+
+# ============================================================
+# TEST 9 — Cancel after heavy matching (stale iterator guard)
+# ============================================================
+
+# This order is likely still resting unless it was matched earlier.
+# If it was matched/cancelled already, the cancel will be ignored — both outcomes are acceptable,
+# the goal is to ensure canceling never crashes due to stale iterators.
+CANCEL 1003
+
+
+# ============================================================
+# TEST 10 — Another crossing chain (multi-level matching, level deletion in loop)
+# ============================================================
+
+# Add multiple asks close together
+ADD 1801 SELL 8000 1
+ADD 1802 SELL 8000 1
+ADD 1803 SELL 8100 2
+
+# Aggressive buy consumes exactly across levels
+ADD 1804 BUY 9000 4
+# expected:
+#   consumes 1801, 1802 (level 8000 becomes empty -> erased)
+#   consumes 1803 (2) (level 8100 becomes empty -> erased)
+#   incoming fully filled, should not rest
+
+
+# ============================================================
+# END OF FILE
+# ============================================================

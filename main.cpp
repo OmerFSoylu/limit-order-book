@@ -2,44 +2,49 @@
 #include <fstream>
 #include <sstream>
 #include <cstdint>
-#include "MatchingEngine.hpp"
+#include "OrderBook.hpp"
 #include "types.hpp"
 
 Side stringToSide(std::string sside) {
-    sside[0] == 'B' ? Side::Buy: Side::Sell;
+    return (sside[0] == 'B') ? Side::Buy: Side::Sell;
 }
 
 int main() {
-    MatchingEngine engine;
+    OrderBook orderBook;
 
     std::ifstream file("input.txt");
     std::string line;
     std::string command, sside;
-    std::int32_t  int_id, int_price, int_quantity;
-    Side side;
-    Price price;
-    OrderId id;
-    Quantity quantity;
+    std::int32_t  id, price, quantity;
+    Order order;
     while (std::getline(file, line)) {
         std::stringstream ss(line);
         ss >> command;
         if(command != "ADD"  || command != "CANCEL") {
             continue;
         }
-        ss >> int_id;
-        id.val = int_id;
+        ss >> id;
+        order.id.val = id;
 
         if (command == "ADD") {
             ss >> sside;
-            side = stringToSide(sside);
-            ss >> int_price >> int_quantity;
+            if (sside != "BUY" || sside != "SELL") {
+                continue;
+            }
+            order.side = stringToSide(sside);
+            ss >> price >> quantity;
             
-            price.val, quantity.val = int_price, int_quantity;
+            order.price.val = price;
+            order.quantity.val = quantity;
+            
+            if (price <= 0 || quantity <= 0) {
+                continue;
+            }
 
-            engine.addOrder(id, side, price, quantity); 
+            orderBook.addOrder(order); 
         }
 
-        else engine.cancelOrder(id);
+        else orderBook.cancelOrder(order.id);
 
     }
 

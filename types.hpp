@@ -22,5 +22,7 @@ struct OrderId {
 
 struct Order {
   OrderId id;
+  Price price;
   Quantity quantity;  
+  Side side;
 };

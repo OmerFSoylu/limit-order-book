@@ -11,7 +11,6 @@ Side stringToSide(std::string sside) {
 
 int main() {
     OrderBook orderBook;
-
     std::ifstream file("input.txt");
     std::string line;
     std::string command, sside;
@@ -20,15 +19,14 @@ int main() {
     while (std::getline(file, line)) {
         std::stringstream ss(line);
         ss >> command;
-        if(command != "ADD"  || command != "CANCEL") {
+        if(command != "ADD"  && command != "CANCEL") {
             continue;
         }
         ss >> id;
         order.id.val = id;
-
         if (command == "ADD") {
             ss >> sside;
-            if (sside != "BUY" || sside != "SELL") {
+            if (sside != "BUY" && sside != "SELL") {
                 continue;
             }
             order.side = stringToSide(sside);

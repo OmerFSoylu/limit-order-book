@@ -10,6 +10,24 @@ enum class Side {
 
 struct Price{
     std::uint32_t val;
+    bool operator<(const Price& other) const {
+        return val < other.val;
+    }
+    bool operator>(const Price& other) const {
+        return val > other.val;
+    }
+    bool operator<=(const Price& other) const {
+        return val <= other.val;
+    }
+    bool operator>=(const Price& other) const {
+        return val >= other.val;
+    }
+    bool operator==(const Price& other) const {
+        return val == other.val;
+    }
+    bool operator!=(const Price& other) const {
+        return val != other.val;
+    }
 };
 
 struct Quantity {
@@ -18,6 +36,18 @@ struct Quantity {
 
 struct OrderId {
     std::int32_t val;
+    bool operator==(const OrderId& other) const {
+        return val == other.val;
+    }
+    bool operator!=(const OrderId& other) const {
+        return val != other.val;
+    }
+    bool operator<(const OrderId& other) const {
+        return val < other.val;
+    }
+    bool operator>(const OrderId& other) const {
+        return val > other.val;
+    }
 };
 
 struct Order {
